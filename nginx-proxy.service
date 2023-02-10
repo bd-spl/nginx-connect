@@ -1,0 +1,36 @@
+[Unit]                                                                                                                             
+Description=Nginx proxy server
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Restart=on-failure 
+RestartSec=75
+Environment=XDG_RUNTIME_DIR=/run/podman
+ExecStartPre=-/usr/bin/podman pull quay.io/bogdando_1/nginx-connect:v1.19.3.1
+ExecStartPre=-/usr/bin/podman rm -f nginx-proxy
+ExecStart=/usr/bin/podman run \
+    --name=nginx-proxy \
+    --uidmap 0:48:1 \
+    --uidmap 1:100001:4998 \
+    --uidmap 65534:104999:1 \
+    --gidmap 0:48:1 \
+    --gidmap 1:100001:4998 \
+    --gidmap 65534:104999:1 \
+    -it --detach=false \
+    --net=slirp4netns:port_handler=slirp4netns \
+    -p 55161:55161 \
+    --conmon-pidfile=/run/podman/nginx-proxy.pid \
+    -v /etc/nginx/.htpasswd:/etc/nginx/.htpasswd:ro,z \
+    -v /etc/nginx/proxy_auth.lua:/etc/nginx/proxy_auth.lua:ro,z \
+    -v /etc/nginx/conf.d/nginx-proxy.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro,z \
+    quay.io/bogdando_1/nginx-connect:v1.19.3.1
+ExecStop=/usr/bin/podman rm -f nginx-proxy
+Type=simple
+KillMode=none
+PIDFile=/run/podman/nginx-proxy.pid
+    
+[Install]
+WantedBy=multi-user.target
